@@ -4799,6 +4799,126 @@ void CG_AddRefEntityWithPowerups( refEntity_t *ent, int powerups, centity_t *cen
 		}
 	}
 
+	//jp-swgl: MP force-side corpse decomposition (port of the MP body-fade effect)
+	if ( cent->decomposeStart )
+	{
+		qboolean lightSide = (cent->decomposeSide == 1) ? qtrue : qfalse;
+		vec3_t hitLoc, tempAng;
+		float tempLength;
+		int curTimeDif = (cg.time - cent->decomposeStart);
+		int tMult = (int)(curTimeDif*0.08);
+
+		if (curTimeDif >= 6000)
+		{ //effect window over (the game module frees the entity at the same time)
+			cent->decomposeStart = 0;
+			cent->decomposeDustTime = 0;
+			cent->decomposeSide = 0;
+			return;	//don't draw it this frame, same instant the server lets it go
+		}
+
+		ent->renderfx |= RF_FORCE_ENT_ALPHA;
+
+		if (curTimeDif*0.1 > 254)
+		{
+			ent->shaderRGBA[3] = 0;
+		}
+		else
+		{
+			ent->shaderRGBA[3] = (254 - tMult);
+		}
+
+		if (ent->shaderRGBA[3] >= 1)
+		{ //add the transparent body section
+			cgi_R_AddRefEntityToScene( ent );
+		}
+
+		ent->renderfx &= ~RF_FORCE_ENT_ALPHA;
+		ent->renderfx |= RF_RGB_TINT;
+
+		if (tMult > 200)
+		{ //begin the disintegration effect
+			ent->shaderRGBA[3] = 200;
+			if (!cent->decomposeDustTime)
+			{
+				cent->decomposeDustTime = cg.time;
+				if (lightSide)
+				{
+					cgi_S_StartSound ( NULL, cent->currentState.number, CHAN_AUTO, cgi_S_RegisterSound("sound/weapons/force/see.mp3") );
+				}
+				else
+				{
+					cgi_S_StartSound ( NULL, cent->currentState.number, CHAN_AUTO, cgi_S_RegisterSound("sound/weapons/force/lightning.wav") );
+				}
+			}
+			ent->endTime = cent->decomposeDustTime;
+			ent->renderfx |= RF_DISINTEGRATE2;
+		}
+		else
+		{ //set the alpha on the to-be-disintegrated layer
+			ent->shaderRGBA[3] = tMult;
+			if (ent->shaderRGBA[3] < 1)
+			{
+				ent->shaderRGBA[3] = 1;
+			}
+		}
+		//Set everything up on the disint ref
+		ent->shaderRGBA[0] = ent->shaderRGBA[1] = ent->shaderRGBA[2] = ent->shaderRGBA[3];
+		VectorCopy(cent->lerpOrigin, hitLoc);
+
+		VectorSubtract( hitLoc, ent->origin, ent->oldorigin );
+
+		tempLength = VectorNormalize( ent->oldorigin );
+		vectoangles( ent->oldorigin, tempAng );
+		tempAng[YAW] -= cent->lerpAngles[YAW];
+		AngleVectors( tempAng, ent->oldorigin, NULL, NULL );
+		VectorScale( ent->oldorigin, tempLength, ent->oldorigin );
+
+		if (lightSide)
+		{ //might be temporary, dunno.
+			ent->customShader = cgs.media.playerShieldDamage;
+		}
+		else
+		{
+			ent->customShader = cgs.media.redSaberGlowShader;
+		}
+
+		cgi_R_AddRefEntityToScene( ent );
+		ent->renderfx &= ~RF_DISINTEGRATE2;
+		ent->customShader = 0;
+
+		if (curTimeDif < 3400)
+		{
+			if (lightSide)
+			{
+				if (curTimeDif < 2200)
+				{ //probably temporary
+					cgi_S_StartSound ( NULL, cent->currentState.number, CHAN_AUTO, cgi_S_RegisterSound("sound/weapons/saber/saberhum1.wav") );
+				}
+			}
+			else
+			{
+				ent->shaderRGBA[0] = 255;
+				ent->shaderRGBA[1] = ent->shaderRGBA[2] = 0;
+				ent->shaderRGBA[3] = 255;
+				if ( rand() & 1 )
+				{
+					ent->customShader = cgs.media.electricBodyShader;
+				}
+				else
+				{
+					ent->customShader = cgs.media.electricBody2Shader;
+				}
+				if ( Q_flrand(0.0f, 1.0f) > 0.9f )
+				{
+					cgi_S_StartSound ( NULL, cent->currentState.number, CHAN_AUTO, cgi_S_RegisterSound("sound/effects/energy_crackle.wav") );
+				}
+				cgi_R_AddRefEntityToScene( ent );
+			}
+		}
+
+		return;
+	}
+
 	// If certain states are active, we don't want to add in the regular body
 	if ( !gent->client->ps.powerups[PW_CLOAKED] &&
 		!gent->client->ps.powerups[PW_UNCLOAKING] &&

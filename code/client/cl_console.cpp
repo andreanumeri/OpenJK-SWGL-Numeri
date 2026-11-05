@@ -500,7 +500,7 @@ Con_Init
 void Con_Init (void) {
 	int		i;
 
-	con_notifytime = Cvar_Get ("con_notifytime", "3", 0);
+	con_notifytime = Cvar_Get ("con_notifytime", "0", 0);	//jp-swgl: default off: keep messages in the console log, don't paint them over the gameplay
 	con_conspeed = Cvar_Get ("scr_conspeed", "3", 0);
 	Cvar_CheckRange (con_conspeed, 1.0f, 100.0f, qfalse);
 

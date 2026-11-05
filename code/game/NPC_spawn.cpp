@@ -6364,6 +6364,52 @@ void NPC_Saber_f(void)
 	}
 }
 
+//jp-swgl: MP-style force side corpse decomposition for "npc remove light/dark", plus the classic SP disruptor (sniper) disintegration for "npc remove des"
+static void NPC_DecomposeNPC(gentity_t* ent, int mode)
+{
+	if (!ent->NPC || !ent->client)
+	{
+		return;
+	}
+
+	// same as the classic removal, but the NPC stays visible for the client-side effect
+	G_UseTargets2(ent, ent, ent->target3);
+	ent->svFlags &= ~SVF_NPC;
+	ent->contents = 0;
+	ent->health = 0;
+	ent->takedamage = qfalse;
+	ent->targetname = NULL;
+
+	if (mode == 3)
+	{//disruptor/sniper disintegration: same as the MOD_SNIPER branch in G_Damage
+		ent->svFlags |= SVF_BROADCAST;
+		ent->flags |= FL_DISINTEGRATED;
+		ent->maxs[2] = -8;
+
+		if (ent->playerModel >= 0)
+		{//don't let 'em animate
+			gi.G2API_PauseBoneAnimIndex(&ent->ghoul2[ent->playerModel], ent->rootBone, level.time);
+			gi.G2API_PauseBoneAnimIndex(&ent->ghoul2[ent->playerModel], ent->motionBone, level.time);
+			gi.G2API_PauseBoneAnimIndex(&ent->ghoul2[ent->playerModel], ent->lowerLumbarBone, level.time);
+		}
+
+		gentity_t* tent = G_TempEntity(ent->currentOrigin, EV_DISINTEGRATION);
+		tent->s.eventParm = PW_DISRUPTION;
+		tent->svFlags |= SVF_BROADCAST;
+		tent->owner = ent;
+
+		ent->e_ThinkFunc = thinkF_G_FreeEntity;
+		ent->nextthink = level.time + 2000; //must match the cgame PW_DISRUPTION window (cg_event.cpp), otherwise the NPC pops back visible at the end
+		return;
+	}
+
+	// signal the cgame (see cg_event.cpp: eventParm 100 = light, 101 = dark)
+	G_AddEvent(ent, EV_DISINTEGRATION, (mode == 1) ? 100 : 101);
+
+	ent->e_ThinkFunc = thinkF_G_FreeEntity;
+	ent->nextthink = level.time + 6000; //must match the cgame effect window exactly (see cg_players.cpp), otherwise the NPC pops back visible for the last second
+}
+
 void NPC_Remove_f(void)
 {
 	int         n;
@@ -6371,8 +6417,16 @@ void NPC_Remove_f(void)
 	char* name;
 	team_t      removeTeam = TEAM_FREE;
 	qboolean    removeNonSF = qfalse;
+	int         decomposeMode = 0;//jp-swgl: 1 = light side, 2 = dark side, 3 = disruptor (sniper) disintegration
 
 	name = gi.argv(2);
+
+	//jp-swgl: optional force-side effect mode
+	if (Q_stricmp(name, "light") == 0 || Q_stricmp(name, "dark") == 0 || Q_stricmp(name, "des") == 0)
+	{
+		decomposeMode = (Q_stricmp(name, "light") == 0) ? 1 : ((Q_stricmp(name, "dark") == 0) ? 2 : 3);
+		name = gi.argv(3);
+	}
 
 	if (!*name || !name[0])
 	{
@@ -6382,6 +6436,8 @@ void NPC_Remove_f(void)
 		gi.Printf(S_COLOR_RED"NPC remove 'all' - removes all NPCs\n");
 		gi.Printf(S_COLOR_RED"or\n");
 		gi.Printf(S_COLOR_RED"NPC remove team '[teamname]' - removes all NPCs of a certain team ('nonally' is all but your allies)\n");
+		gi.Printf(S_COLOR_RED"or\n");
+		gi.Printf(S_COLOR_RED"NPC remove 'light/dark/des' '[NPC targetname]' - removes with the light/dark side Force death effect or the disruptor (sniper) disintegration\n");
 		return;
 	}
 
@@ -6450,17 +6506,24 @@ void NPC_Remove_f(void)
 						ent->NPC_type,
 						ent->targetname ? ent->targetname : "(none)");
 
-					// Hide & disable NPC
-					G_UseTargets2(ent, ent, ent->target3);
-					ent->s.eFlags |= EF_NODRAW;
-					ent->svFlags &= ~SVF_NPC;
-					ent->s.eType = ET_INVISIBLE;
-					ent->contents = 0;
-					ent->health = 0;
-					ent->targetname = NULL;
+					if (decomposeMode)
+					{
+						NPC_DecomposeNPC(ent, decomposeMode);
+					}
+					else
+					{
+						// Hide & disable NPC
+						G_UseTargets2(ent, ent, ent->target3);
+						ent->s.eFlags |= EF_NODRAW;
+						ent->svFlags &= ~SVF_NPC;
+						ent->s.eType = ET_INVISIBLE;
+						ent->contents = 0;
+						ent->health = 0;
+						ent->targetname = NULL;
 
-					ent->e_ThinkFunc = thinkF_G_FreeEntity;
-					ent->nextthink = level.time + FRAMETIME;
+						ent->e_ThinkFunc = thinkF_G_FreeEntity;
+						ent->nextthink = level.time + FRAMETIME;
+					}
 				}
 			}
 			else if (ent->NPC_type && ent->classname && ent->classname[0] &&
@@ -6488,16 +6551,23 @@ void NPC_Remove_f(void)
 					ent->NPC_type,
 					ent->targetname ? ent->targetname : "(none)");
 
-				G_UseTargets2(ent, ent, ent->target3);
-				ent->s.eFlags |= EF_NODRAW;
-				ent->svFlags &= ~SVF_NPC;
-				ent->s.eType = ET_INVISIBLE;
-				ent->contents = 0;
-				ent->health = 0;
-				ent->targetname = NULL;
+				if (decomposeMode)
+				{
+					NPC_DecomposeNPC(ent, decomposeMode);
+				}
+				else
+				{
+					G_UseTargets2(ent, ent, ent->target3);
+					ent->s.eFlags |= EF_NODRAW;
+					ent->svFlags &= ~SVF_NPC;
+					ent->s.eType = ET_INVISIBLE;
+					ent->contents = 0;
+					ent->health = 0;
+					ent->targetname = NULL;
 
-				ent->e_ThinkFunc = thinkF_G_FreeEntity;
-				ent->nextthink = level.time + FRAMETIME;
+					ent->e_ThinkFunc = thinkF_G_FreeEntity;
+					ent->nextthink = level.time + FRAMETIME;
+				}
 			}
 
 			//
@@ -6510,16 +6580,23 @@ void NPC_Remove_f(void)
 					ent->NPC_type,
 					ent->targetname ? ent->targetname : "(none)");
 
-				G_UseTargets2(ent, ent, ent->target3);
-				ent->s.eFlags |= EF_NODRAW;
-				ent->svFlags &= ~SVF_NPC;
-				ent->s.eType = ET_INVISIBLE;
-				ent->contents = 0;
-				ent->health = 0;
-				ent->targetname = NULL;
+				if (decomposeMode)
+				{
+					NPC_DecomposeNPC(ent, decomposeMode);
+				}
+				else
+				{
+					G_UseTargets2(ent, ent, ent->target3);
+					ent->s.eFlags |= EF_NODRAW;
+					ent->svFlags &= ~SVF_NPC;
+					ent->s.eType = ET_INVISIBLE;
+					ent->contents = 0;
+					ent->health = 0;
+					ent->targetname = NULL;
 
-				ent->e_ThinkFunc = thinkF_G_FreeEntity;
-				ent->nextthink = level.time + FRAMETIME;
+					ent->e_ThinkFunc = thinkF_G_FreeEntity;
+					ent->nextthink = level.time + FRAMETIME;
+				}
 			}
 		}
 		//

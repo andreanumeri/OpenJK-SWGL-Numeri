@@ -675,6 +675,16 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_DISINTEGRATION:
 		{
 			DEBUGNAME("EV_DISINTEGRATION");
+
+			//jp-swgl: piggybacked signal from the game module for "npc remove light/dark"
+			if ( es->eventParm == 100 || es->eventParm == 101 )
+			{
+				cent->decomposeStart = cg.time;
+				cent->decomposeDustTime = 0;
+				cent->decomposeSide = (es->eventParm == 100) ? 1 : 0;
+				break;
+			}
+
 			qboolean makeNotSolid = qfalse;
 			int disintPW = es->eventParm;
 			int disintEffect = 0;

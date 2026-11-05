@@ -165,6 +165,11 @@ struct centity_s
 //	int				trailTime;		// so missile trails can handle dropped initial packets
 	int				miscTime;
 
+	//jp-swgl: MP force-side corpse decomposition (npc remove light/dark)
+	int				decomposeStart;		// cg.time stamp of effect start, 0 = not decomposing
+	int				decomposeDustTime;		// cg.time stamp when the disintegration layer began
+	int				decomposeSide;			// 1 = light side, 0 = dark side
+
 	playerEntity_t	pe;
 
 //	int				errorTime;		// decay the error from this time

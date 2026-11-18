@@ -1895,6 +1895,10 @@ void R_PipRendererInit( void );
 void R_PipRendererShutdown( void );
 void R_PipAddFramePresentCmd( void );
 qboolean Pip_ShouldRender( void );
+void Pip_SceneViewport( int *x, int *y, int *width, int *height );
+qboolean Pip_Bound( void );
+qboolean Pip_DeferScene( const refdef_t *fd );
+void Pip_RunDeferredScene( void );
 
 void RE_SetColor( const float *rgba );
 void RE_StretchPic ( float x, float y, float w, float h,

@@ -323,6 +323,17 @@ void RE_RenderScene( const refdef_t *fd ) {
 		return;
 	}
 
+	pipScene = (qboolean)( fd->pipRender && Pip_ShouldRender() );
+
+	// SWGL PiP: park the refdef and let the frame end replay it.  The back end runs its
+	// commands in the order the frame built them, and the game's 2D (the HUD, the console,
+	// the menus) comes after this call, so a pip scene sitting here would have all that 2D
+	// land in the PiP framebuffer.  Answering qtrue means "parked, nothing to do here"; the
+	// replay at the end of the frame is answered qfalse and goes through normally.
+	if ( pipScene && Pip_DeferScene( fd ) ) {
+		return;
+	}
+
 	GLimp_LogComment( "====== RE_RenderScene =====\n" );
 
 	if ( r_norefresh->integer ) {
@@ -411,6 +422,22 @@ void RE_RenderScene( const refdef_t *fd ) {
 	tr.refdef.numPolys = r_numpolys - r_firstScenePoly;
 	tr.refdef.polys = &backEndData->polys[r_firstScenePoly];
 
+	// SWGL PiP: make the PiP scene a true mirror of the main render, camera aside.
+	// The main scene already consumed the frame's entity/dlight/poly lists (each
+	// scene window covers only what was added after the previous scene finished),
+	// so widen all three windows back to the whole frame.  The world surfaces are
+	// already this view's own, gathered per view.
+	if ( pipScene ) {
+		tr.refdef.num_entities = r_numentities;
+		tr.refdef.entities = &backEndData->entities[0];
+
+		tr.refdef.num_dlights = r_numdlights;
+		tr.refdef.dlights = &backEndData->dlights[0];
+
+		tr.refdef.numPolys = r_numpolys;
+		tr.refdef.polys = &backEndData->polys[0];
+	}
+
 	// turn off dynamic lighting globally by clearing all the
 	// dlights if it needs to be disabled or if vertex lighting is enabled
 	if ( r_dynamiclight->integer == 0 ||
@@ -452,8 +479,12 @@ void RE_RenderScene( const refdef_t *fd ) {
 	recursivePortalCount = 0;
 
 	// SWGL PiP: redirect this scene's rendering into the PiP framebuffer
-	pipScene = (qboolean)( fd->pipRender && Pip_ShouldRender() );
 	if ( pipScene ) {
+		// the framebuffer is half the main resolution while the refdef geometry the
+		// game sends is the main one, so the view has to be the framebuffer's own
+		// rectangle.  The aspect ratio is unchanged, so the projection (fov) stays
+		// exactly as the game set it.
+		Pip_SceneViewport( &parms.viewportX, &parms.viewportY, &parms.viewportWidth, &parms.viewportHeight );
 		R_AddPipBindCmd();
 	}
 

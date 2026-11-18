@@ -1641,7 +1641,13 @@ const void	*RB_DrawSurfs( const void *data ) {
 	*/
 
 	// Render dynamic glowing/flaring objects.
-	if ( !(backEnd.refdef.rdflags & RDF_NOWORLDMODEL) && g_bDynamicGlowSupported && r_DynamicGlow->integer )
+	// SWGL PiP: not for the PiP view.  This chain works on copy textures that are
+	// pinned to the main window's resolution (sceneImage/screenGlow/blurImage) and
+	// its last step is a full-screen overlay orthoed at the main size, so running it
+	// over the half-size PiP framebuffer composites a shrunken copy of the main view
+	// into the PiP frame.  The PiP is only a guide window, so like the reference
+	// implementation it simply gets no bloom chain.
+	if ( !(backEnd.refdef.rdflags & RDF_NOWORLDMODEL) && g_bDynamicGlowSupported && r_DynamicGlow->integer && !Pip_Bound() )
 	{
 		// Copy the normal scene to texture.
 		qglDisable( GL_TEXTURE_2D );

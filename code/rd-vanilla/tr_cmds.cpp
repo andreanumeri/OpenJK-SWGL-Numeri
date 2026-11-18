@@ -536,6 +536,11 @@ void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {
 	}
 	cmd->commandId = RC_SWAP_BUFFERS;
 
+	// SWGL PiP: the pip view is replayed here, after all the 2D meant for the main window
+	// (the HUD, the console, the menus) has been built, so that none of it lands in the PiP
+	// framebuffer
+	Pip_RunDeferredScene();
+
 	// SWGL PiP: refresh the PiP window (black when idle) before the swap
 	R_PipAddFramePresentCmd();
 

@@ -2478,8 +2478,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView ) {
 
 	// SWGL PiP: while the static camera is active, render the real first-person view
 	// at the full main resolution (the post chain runs at full size) and hand it to
-	// the renderer, which scales it down into the PiP window
+	// the renderer, which scales it down into the PiP window.  While a menu is open
+	// (cl_paused is set by the UI) the PiP is disabled and shows its idle state.
 	if ( !in_camera && !cg_pano.integer && static_cam && static_cam->value != 0.0f
+		&& !cg_paused.integer
 		&& gi.Cvar_VariableIntegerValue( "r_pip_window" ) ) {
 		refdef_t	pipRefdef;
 

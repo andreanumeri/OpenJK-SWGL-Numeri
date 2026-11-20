@@ -3273,7 +3273,9 @@ const void *RB_PostProcess(const void *data)
 		FBO_BlitFromTexture(tr.weatherDepthImage, NULL, NULL, NULL, nullptr, NULL, NULL, 0);
 	}
 
-	if (r_ssao->integer == 2 && !cmd->destFbo)
+	// rd-vulkan reads r_ssao 2 as GTAO, so the debug view has its own cvar.
+	// (skipped for the pip chain: debug views draw to the backbuffer, main chain only)
+	if (r_ssao->integer && r_debugSsao->integer && !cmd->destFbo)
 	{
 		vec4i_t dstBox;
 		VectorSet4(dstBox, 0, glConfig.vidHeight, 512, -512);
